@@ -438,12 +438,81 @@
     <p class="footer-host">Hosted by Jemaat Indonesia München (JIM) · © 2025</p>
   </footer>
 
+  <div id="adminPanel" style="display:none; position:fixed; bottom:16px; right:16px; z-index:999; background:#1a1f24; border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:14px 16px; font-family:var(--font-mono); font-size:12px; color:#e8dab2; box-shadow:0 8px 24px rgba(0,0,0,0.4);">
+    <div style="margin-bottom:8px;"><span id="adminCount">0</span> signup(s) stored in this browser</div>
+    <button type="button" onclick="exportSignupsCSV()" style="font-family:inherit; font-size:12px; padding:6px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.2); background:transparent; color:#e8dab2; cursor:pointer;">Export CSV →</button>
+  </div>
+
   <script>
+    const SIGNUP_STORAGE_KEY = 'gatherid_signups';
+
+    function getSignups() {
+      try {
+        return JSON.parse(localStorage.getItem(SIGNUP_STORAGE_KEY)) || [];
+      } catch (err) {
+        return [];
+      }
+    }
+
+    function saveSignup(entry) {
+      const signups = getSignups();
+      signups.push(entry);
+      try {
+        localStorage.setItem(SIGNUP_STORAGE_KEY, JSON.stringify(signups));
+      } catch (err) {
+        // localStorage unavailable (e.g. private browsing) — signup still shows success
+      }
+    }
+
+    function csvEscape(value) {
+      const str = String(value ?? '');
+      return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+    }
+
+    function exportSignupsCSV() {
+      const signups = getSignups();
+      const columns = ['name', 'email', 'role', 'city', 'submittedAt'];
+      const rows = [columns.join(',')]
+        .concat(signups.map(s => columns.map(c => csvEscape(s[c])).join(',')));
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'gatherid-signups-' + new Date().toISOString().slice(0, 10) + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
     function handleSubmit(e) {
       e.preventDefault();
-      document.getElementById('newsletterForm').style.display = 'none';
+      const form = document.getElementById('newsletterForm');
+      saveSignup({
+        name: document.getElementById('fname').value.trim(),
+        email: document.getElementById('femail').value.trim(),
+        role: document.getElementById('frole').value,
+        city: document.getElementById('fcity').value.trim(),
+        submittedAt: new Date().toISOString()
+      });
+      form.style.display = 'none';
       document.getElementById('formSuccess').style.display = 'block';
+      updateAdminPanel();
     }
+
+    function updateAdminPanel() {
+      const panel = document.getElementById('adminPanel');
+      if (window.location.hash === '#admin') {
+        panel.style.display = 'block';
+        document.getElementById('adminCount').textContent = getSignups().length;
+      } else {
+        panel.style.display = 'none';
+      }
+    }
+
+    window.addEventListener('hashchange', updateAdminPanel);
+    updateAdminPanel();
+
     document.querySelectorAll('a[href^="#"]').forEach(a => {
       a.addEventListener('click', e => {
         e.preventDefault();
